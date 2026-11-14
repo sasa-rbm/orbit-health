@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Orbit Health Console — NASA BPS Data Edition</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #070b14; --panel: #0e1626; --panel-2: #132038; --line: #1f2f4d;
+    --text: #e6edf7; --muted: #8a9bb8; --accent: #5ec8ff;
+    --ok: #3fdc97; --watch: #ffc857; --alert: #ff5d73;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: "Inter", system-ui, sans-serif; color: var(--text);
+    background:
+      radial-gradient(1200px 600px at 80% -10%, #15305a 0%, transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, #0f2a3d 0%, transparent 60%),
+      var(--bg);
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+  }
+  h1, h2, h3 { font-family: "Space Grotesk", system-ui, sans-serif; margin: 0; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    padding: 16px 28px; border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; z-index: 5; background: rgba(7,11,20,.75); backdrop-filter: blur(8px);
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: conic-gradient(from 200deg, var(--accent), #7b61ff, var(--accent));
+    box-shadow: 0 0 24px rgba(94,200,255,.35); animation: spin 12s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .brand h1 { font-size: 18px; }
+  .brand span { font-size: 12px; color: var(--muted); }
+  .mission { font-size: 13px; color: var(--muted); display: flex; gap: 18px; flex-wrap: wrap; }
+  .mission b { color: var(--text); font-weight: 600; }
+  .pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-right: 6px; animation: pulse 1.8s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(63,220,151,.6)} 70%{box-shadow:0 0 0 10px rgba(63,220,151,0)} 100%{box-shadow:0 0 0 0 rgba(63,220,151,0)} }
+
+  .tabs { display: flex; gap: 8px; padding: 14px 28px 0; max-width: 1400px; margin: 0 auto; flex-wrap: wrap; }
+  .tab {
+    font-family: "Space Grotesk", sans-serif; font-weight: 600; font-size: 14px;
+    padding: 10px 16px; border-radius: 10px; border: 1px solid var(--line);
+    background: transparent; color: var(--muted); cursor: pointer; transition: all .2s;
+  }
+  .tab:hover { color: var(--text); border-color: var(--accent); }
+  .tab.active { background: linear-gradient(135deg,#2f8fd8,#5b5fe0); color: #fff; border-color: transparent; box-shadow: 0 6px 20px rgba(91,95,224,.35); }
+  .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .view { display: none; }
+  .view.active { display: block; animation: fadeUp .35s ease; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px);} to { opacity: 1; transform: none; } }
+
+  main {
+    display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px;
+    padding: 20px 28px 40px; max-width: 1400px; margin: 0 auto;
+  }
+  @media (max-width: 960px) { main { grid-template-columns: 1fr; } }
+
+  .card {
+    background: linear-gradient(180deg, var(--panel), #0b1220);
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; position: relative;
+  }
+  .card-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 10px; flex-wrap: wrap; }
+  .card-title h2 { font-size: 15px; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); }
+
+  .tag { display: inline-block; font-size: 11px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); margin: 2px 4px 2px 0; }
+  .tag.src { color: var(--accent); border-color: rgba(94,200,255,.35); background: rgba(94,200,255,.06); }
+
+  /* Body map */
+  .body-wrap { display: flex; flex-direction: column; align-items: center; }
+  .body-svg { width: min(340px, 90%); height: auto; }
+  .part { cursor: pointer; fill: #1a2b4a; stroke: #3a5684; stroke-width: 1.2; transition: fill .25s, filter .25s; }
+  .part:hover { fill: #24406d; filter: drop-shadow(0 0 6px rgba(94,200,255,.5)); }
+  .part.selected { fill: #2b5f8f; stroke: var(--accent); filter: drop-shadow(0 0 10px rgba(94,200,255,.7)); }
+  .part.status-ok { stroke: var(--ok); }
+  .part.status-watch { stroke: var(--watch); }
+  .part.status-alert { stroke: var(--alert); animation: alertPulse 1.6s infinite; }
+  @keyframes alertPulse { 50% { filter: drop-shadow(0 0 12px rgba(255,93,115,.9)); } }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  .part-info { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px; min-height: 130px; animation: fadeUp .4s ease; }
+  .part-info h3 { font-size: 18px; margin-bottom: 6px; }
+  .part-info p { margin: 6px 0; font-size: 14px; line-height: 1.5; color: #c4d2e6; }
+  .empty { color: var(--muted); font-size: 14px; text-align: center; padding: 30px 10px; }
+
+  /* Buttons */
+  .btn {
+    font-family: "Space Grotesk", sans-serif; font-weight: 600; font-size: 14px;
+    padding: 11px 18px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--text); cursor: pointer;
+    transition: transform .15s, background .2s, box-shadow .2s, border-color .2s;
+  }
+  .btn:hover { background: #1a2d50; border-color: var(--accent); transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn.primary { background: linear-gradient(135deg, #2f8fd8, #5b5fe0); border: none; box-shadow: 0 6px 20px rgba(91,95,224,.35); }
+  .btn.ghost { background: transparent; }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+
+  /* Inputs */
+  .grid-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 560px) { .grid-inputs { grid-template-columns: 1fr; } }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  .field input, .field select {
+    width: 100%; padding: 10px 12px; border-radius: 10px;
+    background: #0a1222; border: 1px solid var(--line); color: var(--text);
+    font-family: "Inter", sans-serif; font-size: 14px; outline: none; transition: border-color .2s, box-shadow .2s;
+  }
+  .field input:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(94,200,255,.15); }
+  .field .unit { font-size: 11px; color: #5d7194; margin-top: 4px; }
+  .field .help { font-size: 11px; color: #8fa4c5; margin-top: 4px; line-height: 1.35; }
+  .symptom-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
+  .symptom-option { position: relative; }
+  .symptom-option input { position: absolute; opacity: 0; pointer-events: none; }
+  .symptom-option label {
+    display: block; padding: 11px 12px; border: 1px solid var(--line); border-radius: 9px;
+    background: #0a1222; color: #c4d2e6; cursor: pointer; font-size: 13px; line-height: 1.3;
+    transition: border-color .2s, background .2s, color .2s, box-shadow .2s;
+  }
+  .symptom-option label:hover { border-color: var(--accent); color: var(--text); }
+  .symptom-option input:checked + label { background: rgba(94,200,255,.14); border-color: var(--accent); color: #fff; box-shadow: 0 0 0 2px rgba(94,200,255,.12); }
+  .symptom-option input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .drop {
+    margin-top: 16px; border: 1.5px dashed #2a3f66; border-radius: 12px; padding: 18px;
+    text-align: center; color: var(--muted); font-size: 13px; cursor: pointer; transition: all .2s;
+  }
+  .drop:hover, .drop.over { border-color: var(--accent); color: var(--text); background: rgba(94,200,255,.05); }
+  .drop input { display: none; }
+  .preview { margin-top: 10px; max-height: 120px; border-radius: 8px; display: none; }
+
+  /* Results */
+  .score-ring { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+  .ring { width: 124px; height: 124px; position: relative; flex-shrink: 0; }
+  .ring svg { transform: rotate(-90deg); }
+  .ring .track { stroke: #17243d; }
+  .ring .bar { transition: stroke-dashoffset 1s cubic-bezier(.2,.8,.2,1); }
+  .ring .num { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+  .ring .num b { font-family: "Space Grotesk"; font-size: 30px; line-height: 1; }
+  .ring .num small { font-size: 11px; color: var(--muted); display: block; margin-top: 4px; }
+  .verdict { font-family: "Space Grotesk"; font-size: 22px; font-weight: 600; }
+  .verdict.ok { color: var(--ok); } .verdict.watch { color: var(--watch); } .verdict.alert { color: var(--alert); }
+  .summary { font-size: 14px; color: #c4d2e6; line-height: 1.55; margin-top: 6px; }
+
+  .readings { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .reading { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 12px 14px; border-radius: 10px; background: #0a1222; border: 1px solid var(--line); animation: fadeUp .35s ease both; }
+  .reading .name { font-size: 14px; font-weight: 500; }
+  .reading .val { font-family: "Space Grotesk"; font-size: 14px; text-align: right; }
+  .reading .note { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+  .reading .src-line { grid-column: 1 / -1; font-size: 11px; color: #5d7194; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .dot.ok { background: var(--ok); } .dot.watch { background: var(--watch); } .dot.alert { background: var(--alert); }
+
+  .actions { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+  .actions h3 { font-size: 14px; color: var(--muted); letter-spacing: .3px; text-transform: uppercase; margin-bottom: 8px; }
+  .actions ol { margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.6; color: #c4d2e6; }
+
+  .escalate { margin-top: 14px; padding: 12px 14px; border-radius: 10px; font-size: 13.5px; line-height: 1.5; display: none; }
+  .escalate.show { display: block; animation: fadeUp .4s ease; }
+  .escalate.watch { background: rgba(255,200,87,.08); border: 1px solid rgba(255,200,87,.35); }
+  .escalate.alert { background: rgba(255,93,115,.1); border: 1px solid rgba(255,93,115,.45); }
+
+  /* Source panel */
+  .src-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .src-card { background: #0a1222; border: 1px solid var(--line); border-radius: 12px; padding: 16px; transition: border-color .2s, transform .2s; }
+  .src-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .src-card .abbr { font-family: "Space Grotesk"; font-size: 22px; font-weight: 700; color: var(--accent); }
+  .src-card h3 { font-size: 15px; margin: 4px 0 8px; }
+  .src-card p { font-size: 13.5px; line-height: 1.55; color: #c4d2e6; margin: 0 0 10px; }
+  .src-card ul { margin: 0; padding-left: 18px; font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .src-card a { color: var(--accent); font-size: 13px; text-decoration: none; }
+  .src-card a:hover { text-decoration: underline; }
+
+  /* 1G vs 0G monitoring */
+  .monitor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+  .metric-card { background: #0a1222; border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .metric-card h3 { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+  .metric-values { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .metric-values div { padding: 9px; border-radius: 8px; background: #0e1a2e; }
+  .metric-values small { display: block; color: var(--muted); font-size: 10px; margin-bottom: 3px; }
+  .metric-values b { font-family: "Space Grotesk"; font-size: 16px; }
+  .metric-card.watch { border-color: rgba(255,200,87,.55); }
+  .metric-card.alert { border-color: rgba(255,93,115,.7); }
+  .drift { margin-top: 16px; padding: 14px; border-radius: 10px; background: #0a1222; border: 1px solid var(--line); }
+  .drift-row { display: grid; grid-template-columns: 1.2fr 1fr 1fr 70px; gap: 8px; align-items: center; padding: 9px 0; border-bottom: 1px solid rgba(31,47,77,.7); font-size: 12px; }
+  .drift-row:last-child { border-bottom: 0; }
+  .drift-row span { color: var(--muted); }
+  .drift-row b { font-family: "Space Grotesk"; }
+  .drift-row .delta { text-align: right; }
+  .api-status { font-size: 12px; color: var(--muted); margin-top: 9px; min-height: 18px; }
+  .mini-chart { display: grid; grid-template-columns: repeat(7, 1fr); align-items: end; gap: 7px; height: 110px; padding-top: 12px; }
+  .bar-group { display: flex; align-items: end; justify-content: center; gap: 3px; height: 100%; }
+  .bar { width: 10px; border-radius: 3px 3px 0 0; min-height: 3px; }
+  .bar.baseline { background: #49658e; }
+  .bar.telemetry { background: var(--accent); }
+  .chart-labels { display: grid; grid-template-columns: repeat(7, 1fr); color: var(--muted); font-size: 10px; text-align: center; margin-top: 4px; }
+
+  .disclaimer { grid-column: 1 / -1; font-size: 12px; color: #5d7194; text-align: center; }
+  footer { width: 100%; padding: 18px 28px; border-top: 1px solid var(--line); color: #5d7194; font-size: 12px; text-align: center; }
+
+
+  .modal-overlay {
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    padding: 24px; background: rgba(7,11,20,.72); backdrop-filter: blur(6px); z-index: 50;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-dialog {
+    width: min(920px, 100%); max-height: 88vh; overflow: auto;
+    background: linear-gradient(180deg, var(--panel), #0b1220); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: 0 24px 80px rgba(0,0,0,.55); animation: fadeUp .25s ease;
+  }
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 16px 20px; border-bottom: 1px solid var(--line); position: sticky; top: 0;
+    background: rgba(14,22,38,.96); backdrop-filter: blur(6px); z-index: 1;
+  }
+  .modal-header h2 { font-size: 15px; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); }
+  .modal-close { padding: 6px 12px; font-size: 18px; line-height: 1; }
+  .modal-body { padding: 20px; }
+  body.modal-open { overflow: hidden; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="logo" aria-hidden="true"></div>
+    <div>
+      <h1>Orbit Health Console</h1>
+      <span>SSM-aligned · OSDR reference · offline-ready</span>
+    </div>
+  </div>
+  <div class="mission">
+    <div><span class="pulse"></span>Telemetry <b>Nominal</b></div>
+    <div>MET <b id="met">000:00:00</b></div>
+    <div>Subject <b id="subjectId">EX-07</b></div>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button class="tab active" data-view="assess" role="tab">Assessment</button>
+  <button class="tab" data-view="monitor" role="tab">1G ↔ 0G Monitor</button>
+  <button class="tab" data-view="sources" role="tab">Data Sources</button>
+  <button class="tab" data-view="method" role="tab">Method &amp; Limits</button>
+</nav>
+
+<!-- ============ ASSESSMENT ============ -->
+<section class="view active" id="view-assess">
+<main>
+  <section class="card">
+    <div class="card-title">
+      <h2>Body Map</h2>
+      <button class="btn ghost" id="resetBtn">Reset</button>
+    </div>
+    <div class="body-wrap">
+      <svg class="body-svg" viewBox="0 0 200 420" aria-label="Interactive human body map">
+        <ellipse class="part" data-part="head" cx="100" cy="36" rx="26" ry="30" />
+        <rect class="part" data-part="neck" x="90" y="66" width="20" height="16" rx="4" />
+        <path class="part" data-part="chest" d="M62 86 Q100 78 138 86 L142 150 Q100 160 58 150 Z" />
+        <path class="part" data-part="abdomen" d="M60 152 Q100 162 140 152 L136 210 Q100 218 64 210 Z" />
+        <path class="part" data-part="larm" d="M56 90 L40 180 L30 230 L44 234 L56 184 L66 118 Z" />
+        <path class="part" data-part="rarm" d="M144 90 L160 180 L170 230 L156 234 L144 184 L134 118 Z" />
+        <path class="part" data-part="pelvis" d="M64 212 Q100 224 136 212 L140 248 Q100 258 60 248 Z" />
+        <path class="part" data-part="lleg" d="M62 250 L96 250 L92 372 L76 372 Z" />
+        <path class="part" data-part="rleg" d="M104 250 L138 250 L124 372 L108 372 Z" />
+        <ellipse class="part" data-part="feet" cx="84" cy="390" rx="16" ry="8" />
+        <ellipse class="part" data-part="feet" cx="116" cy="390" rx="16" ry="8" />
+      </svg>
+      <p class="hint">Select a region to see its function, the NASA datasets that study it, and current status.</p>
+      <div class="part-info" id="partInfo"><div class="empty">No region selected</div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-title">
+      <h2>Vital Indicators</h2>
+      <span class="tag src">Reference: NASA BPS</span>
+    </div>
+
+    <div class="grid-inputs">
+      <div class="field">
+        <label for="hr">Resting heart rate (bpm)</label>
+        <input id="hr" type="number" placeholder="e.g. 68" min="20" max="220">
+        <div class="unit">Reference range: 50–100 · OSDR cardiovascular sets</div>
+      </div>
+      <div class="field">
+        <label for="sys">Systolic BP (mmHg)</label>
+        <input id="sys" type="number" placeholder="e.g. 118" min="60" max="220">
+        <div class="unit">Target &lt;130 · OSDR cardiovascular sets</div>
+      </div>
+      <div class="field">
+        <label for="dia">Diastolic BP (mmHg)</label>
+        <input id="dia" type="number" placeholder="e.g. 76" min="40" max="130">
+        <div class="unit">Target &lt;85</div>
+      </div>
+      <div class="field">
+        <label for="spo2">SpO₂ (%)</label>
+        <input id="spo2" type="number" placeholder="e.g. 98" min="50" max="100">
+        <div class="unit">Normal 95–100 · cabin atmosphere context</div>
+      </div>
+      <div class="field">
+        <label for="glu">Blood glucose (mg/dL)</label>
+        <input id="glu" type="number" placeholder="e.g. 92" min="20" max="500">
+        <div class="unit">Fasting target 70–99 · OSDR metabolic studies</div>
+      </div>
+      <div class="field">
+        <label for="temp">Core temperature (°C)</label>
+        <input id="temp" type="number" step="0.1" placeholder="e.g. 36.8" min="32" max="42">
+        <div class="unit">Normal 36.1–37.8</div>
+      </div>
+      <div class="field">
+        <label for="sleep">Sleep last 24h (hours)</label>
+        <input id="sleep" type="number" step="0.5" placeholder="e.g. 6.5" min="0" max="24">
+        <div class="unit">Target 7–8.5 · sleep log or actigraphy</div>
+      </div>
+      <div class="field">
+        <label for="sleepEfficiency">Sleep efficiency (%)</label>
+        <input id="sleepEfficiency" type="number" step="1" placeholder="e.g. 86" min="0" max="100">
+        <div class="help">Optional: wearable/actigraphy value, or estimate sleep time ÷ time in bed × 100.</div>
+      </div>
+      <div class="field">
+        <label for="reaction">Reaction time (ms)</label>
+        <input id="reaction" type="number" step="1" placeholder="e.g. 295" min="100" max="2000">
+        <div class="help">Use a simple tap/reaction test on the crew tablet; record the median of 5 trials.</div>
+      </div>
+      <div class="field">
+        <label for="balance">Single-leg balance (seconds)</label>
+        <input id="balance" type="number" step="1" placeholder="e.g. 32" min="0" max="300">
+        <div class="help">Use the same posture and support rules each time; stop if unsafe.</div>
+      </div>
+      <div class="field">
+        <label for="fatigue">Fatigue (0–10)</label>
+        <input id="fatigue" type="number" placeholder="e.g. 3" min="0" max="10">
+        <div class="help">0 = fully rested · 10 = cannot safely perform duties.</div>
+      </div>
+      <div class="field">
+        <label for="mood">Mood / mental readiness (0–10)</label>
+        <input id="mood" type="number" placeholder="e.g. 7" min="0" max="10">
+        <div class="help">0 = very poor · 10 = ready and focused. Log unusual changes.</div>
+      </div>
+      <div class="field">
+        <label for="pain">Pain level (0–10)</label>
+        <input id="pain" type="number" placeholder="0" min="0" max="10">
+        <div class="unit">Self-reported</div>
+      </div>
+      <div class="field" style="grid-column:1/-1;">
+        <label>Symptoms</label>
+        <div class="symptom-options" id="symptoms" role="group" aria-label="Symptoms">
+          <div class="symptom-option"><input id="symptom-dizziness" name="symptoms" type="checkbox" value="dizziness"><label for="symptom-dizziness">Dizziness / lightheadedness</label></div>
+          <div class="symptom-option"><input id="symptom-nausea" name="symptoms" type="checkbox" value="nausea"><label for="symptom-nausea">Nausea or vomiting (space motion sickness)</label></div>
+          <div class="symptom-option"><input id="symptom-headache" name="symptoms" type="checkbox" value="headache"><label for="symptom-headache">Headache</label></div>
+          <div class="symptom-option"><input id="symptom-vision" name="symptoms" type="checkbox" value="vision"><label for="symptom-vision">Vision changes (SANS indicator)</label></div>
+          <div class="symptom-option"><input id="symptom-congestion" name="symptoms" type="checkbox" value="congestion"><label for="symptom-congestion">Nasal congestion / sinus pressure</label></div>
+          <div class="symptom-option"><input id="symptom-backpain" name="symptoms" type="checkbox" value="backpain"><label for="symptom-backpain">Back or joint pain (spinal lengthening)</label></div>
+          <div class="symptom-option"><input id="symptom-rash" name="symptoms" type="checkbox" value="rash"><label for="symptom-rash">Skin rash or irritation</label></div>
+          <div class="symptom-option"><input id="symptom-shortness" name="symptoms" type="checkbox" value="shortness"><label for="symptom-shortness">Shortness of breath</label></div>
+        </div>
+        <div class="unit">Select any symptoms that apply. Select again to remove.</div>
+      </div>
+    </div>
+
+    <div class="drop" id="drop">
+      <div>📷 Drop an image here, or <u>click to upload</u></div>
+      <div style="font-size:11px;margin-top:4px;">Skin, eye, or wound photos · previewed locally, not transmitted</div>
+      <input type="file" id="file" accept="image/*" capture="environment">
+      <img id="preview" class="preview" alt="Uploaded image preview">
+    </div>
+
+    <div class="btn-row">
+      <button class="btn primary" id="assessBtn">Run Assessment</button>
+      <button class="btn" id="sampleBtn">Load Sample Data</button>
+      <button class="btn ghost" id="clearBtn">Clear</button>
+    </div>
+
+    <div class="hint" style="margin-top:14px;"><b>Low-data workflow:</b> Use the pulse oximeter or monitor for HR/SpO₂, the cuff for BP, the thermometer for temperature, and the crew tablet plus sleep log for performance and sleep. If a device is unavailable, leave that field blank rather than guessing.</div>
+
+    <div id="results-status" style="margin-top:20px;">
+      <div class="empty">Enter indicators and run an assessment. Results will open in a pop-up.</div>
+    </div>
+  </section>
+
+  <p class="disclaimer" style="grid-column:1/-1;">Decision-support prototype. Ranges are illustrative and must be validated against OSDR and PSI source data. Findings must be confirmed by the onboard medical officer and flight surgeons.</p>
+</main>
+</section>
+
+<!-- ============ 1G / 0G MONITOR ============ -->
+<section class="view" id="view-monitor">
+<main style="grid-template-columns:1fr;">
+  <section class="card">
+    <div class="card-title">
+      <h2>Personalized Spaceflight Drift Monitor</h2>
+      <span class="tag src">SSM-aligned · OSDR-linked</span>
+    </div>
+    <p class="summary" style="margin:0 0 16px;">Earth values are the astronaut's pre-flight 1G reference. Zero-G values are the latest telemetry sample. Alerts are generated from the difference, not from a generic population range.</p>
+    <div class="monitor-grid" id="monitorMetrics"></div>
+    <div class="drift">
+      <div class="card-title" style="margin-bottom:4px;"><h2>Early-warning drift alerts</h2><span id="alertCount" class="tag">0 active</span></div>
+      <div id="driftRows"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-title"><h2>7-day trend · sleep efficiency</h2><span class="tag">Actigraphy / SSM sleep</span></div>
+    <div class="mini-chart" id="sleepChart" aria-label="Seven day baseline and spaceflight sleep efficiency chart"></div>
+    <div class="chart-labels"><span>D-6</span><span>D-5</span><span>D-4</span><span>D-3</span><span>D-2</span><span>D-1</span><span>Now</span></div>
+    <p class="hint"><span class="tag" style="background:#49658e;color:#c4d2e6;">1G baseline</span><span class="tag src">0G telemetry</span> Lower sleep efficiency can precede cognitive and sensorimotor drift.</p>
+  </section>
+
+  <section class="card">
+    <div class="card-title"><h2>Local reference pack</h2><span class="tag src">Offline-ready</span></div>
+    <p class="summary" style="margin:0 0 14px;">Approved reference ranges and NASA/OSDR study mappings are preloaded for this crew profile. Astronauts do not need dataset IDs, internet access, or API credentials.</p>
+    <div class="metric-card" style="margin-bottom:14px;">
+      <div class="metric-values">
+        <div><small>Reference pack</small><b id="referencePackName">SSM / OSDR v1</b></div>
+        <div><small>Last approved</small><b id="referencePackDate">2026-10-28</b></div>
+      </div>
+      <div class="help" style="margin-top:9px;">Sources are mapped locally to the health fields; mission control can replace this pack during a planned software update.</div>
+    </div>
+    <div class="btn-row" style="margin-top:0;"><button class="btn" id="downloadJsonBtn">Download sample JSON</button></div>
+    <div class="card-title" style="margin-top:20px;"><h2>Meteomatics environmental context</h2><span class="tag src">Python backend</span></div>
+    <p class="hint">The backend keeps credentials off the browser and refreshes this Earth-location weather value. For in-flight radiation, prefer the spacecraft dosimeter; this weather API is not a radiation-dose instrument.</p>
+    <div class="grid-inputs">
+      <div class="field"><label for="meteoLat">Latitude</label><input id="meteoLat" type="number" step="any" value="28.5729"></div>
+      <div class="field"><label for="meteoLon">Longitude</label><input id="meteoLon" type="number" step="any" value="-80.6490"></div>
+    </div>
+    <div class="btn-row"><button class="btn" id="meteoBtn">Refresh global radiation</button></div>
+    <div class="api-status" id="meteoStatus">Backend connection is idle. Automatic refresh runs every 10 minutes.</div>
+  </section>
+</main>
+</section>
+
+<!-- ============ DATA SOURCES ============ -->
+<section class="view" id="view-sources">
+<main style="grid-template-columns:1fr;">
+  <section class="card">
+    <div class="card-title"><h2>Implemented &amp; reference resources</h2><span class="tag">Local-first health monitoring</span></div>
+    <div class="src-grid">
+      <article class="src-card">
+        <div class="abbr">LOCAL</div>
+        <h3>Preloaded reference pack <span class="tag src">Implemented</span></h3>
+        <p>The astronaut-facing monitor uses a local SSM-aligned schema, personalized 1G baseline, normal ranges, and 0G drift rules. It works without network access or dataset IDs.</p>
+        <ul>
+          <li>Implemented: sleep, cognition, cardiovascular, sensorimotor, fatigue, mood, and symptom inputs</li>
+          <li>Implemented: OK/watch/alert comparison against the personal 1G baseline</li>
+          <li>Reference version shown in the monitor: SSM / OSDR v1</li>
+        </ul>
+      </article>
+      <article class="src-card">
+        <div class="abbr">OSDR</div>
+        <h3>Open Science Data Repository <span class="tag">Reference</span></h3>
+        <p>NASA's repository for biological and physiological spaceflight research. This prototype uses OSDR as study context and mapping guidance; it does not query OSDR during an astronaut check-in.</p>
+        <ul>
+          <li>Relevant context: cardiovascular, metabolic, bone, muscle, immune, and sleep research</li>
+          <li>Production teams should pin the exact dataset, version, units, and inclusion criteria</li>
+        </ul>
+        <p style="margin-top:10px"><a href="https://osdr.nasa.gov" target="_blank" rel="noopener">osdr.nasa.gov ↗</a> · <a href="https://visualization.osdr.nasa.gov/biodata/api/" target="_blank" rel="noopener">OSDR API docs ↗</a></p>
+      </article>
+      <article class="src-card">
+        <div class="abbr">SSM</div>
+        <h3>SSM-aligned application schema <span class="tag src">Implemented</span></h3>
+        <p>The JSON and dashboard field names are organized by behavioral/sleep, cognitive, cardiovascular, physical fitness, biochemical, and environmental domains.</p>
+        <ul>
+          <li>Sample fixture: <code>astronaut_telemetry.json</code></li>
+          <li>Includes both <code>earth_baseline_1g</code> and <code>spaceflight_telemetry_0g</code></li>
+          <li>Not an official NASA certification or medical clearance standard</li>
+        </ul>
+        <p style="margin-top:10px"><a href="https://www.nasa.gov/reference/nasa-std-3001v1/" target="_blank" rel="noopener">NASA crew-health standard ↗</a></p>
+      </article>
+      <article class="src-card">
+        <div class="abbr">ONBOARD</div>
+        <h3>Crew equipment and self-report <span class="tag src">Implemented</span></h3>
+        <p>Inputs are designed for measurements available from common crew equipment and controlled observations rather than requiring a laboratory or live web service.</p>
+        <ul>
+          <li>Pulse oximeter/monitor, BP cuff, thermometer, sleep log or wearable</li>
+          <li>Crew tablet reaction test and repeatable balance check</li>
+          <li>Fatigue, mood, pain, and symptom self-report</li>
+        </ul>
+      </article>
+      <article class="src-card">
+        <div class="abbr">METEO</div>
+        <h3>Meteomatics Weather API <span class="tag src">Python backend</span></h3>
+        <p>The dashboard calls the local FastAPI relay, which requests <code>global_rad:W</code> for an Earth coordinate. Credentials stay on the backend; the result is environmental context only and is not connected to the astronaut's dosimeter or absorbed radiation dose.</p>
+        <ul>
+          <li>Backend endpoint: <code>/api/environment/radiation</code></li>
+          <li>Cached and stale-value handling are implemented</li>
+        </ul>
+        <p style="margin-top:10px"><a href="https://www.meteomatics.com/en/api/available-parameters/weather-parameter/radiation/" target="_blank" rel="noopener">Meteomatics radiation docs ↗</a></p>
+      </article>
+      <article class="src-card">
+        <div class="abbr">NASA</div>
+        <h3>Human-system standards <span class="tag">Reference only</span></h3>
+        <p>NASA-STD-3001 provides authoritative crew-health and human-system requirements. It is a reference for validation, not a live API used by this prototype.</p>
+        <ul>
+          <li>Use flight-medicine review before operational deployment</li>
+          <li>Replace illustrative thresholds with approved mission criteria</li>
+        </ul>
+        <p style="margin-top:10px"><a href="https://www.nasa.gov/reference/nasa-std-3001v1/" target="_blank" rel="noopener">NASA-STD-3001 ↗</a></p>
+      </article>
+    </div>
+    <p class="hint" style="margin-top:14px;">Status labels describe this website's current behavior: <b>Implemented</b> means local dashboard behavior, <b>Reference</b> means an external source used for context, and <b>Python backend</b> means the browser uses the local FastAPI relay.</p>
+  </section>
+</main>
+</section>
+
+<!-- ============ METHOD ============ -->
+<section class="view" id="view-method">
+<main style="grid-template-columns:1fr;">
+  <section class="card">
+    <div class="card-title"><h2>How Readings Map to Sources</h2></div>
+    <div class="part-info" style="border:none;padding:0;">
+      <p><b>1. Measure in flight.</b> Heart rate, blood pressure, SpO₂, temperature, glucose, sleep, pain, and symptoms can be recorded onboard without a lab.</p>
+      <p><b>2. Establish the personal 1G baseline.</b> The 1G record stores the astronaut's pre-flight or ground-analog normal range. SSM-aligned variable names preserve units and collection context.</p>
+      <p><b>3. Compare 0G telemetry continuously.</b> The monitor compares each incoming spaceflight value with that personal baseline, then assigns OK, watch, or alert drift levels. OSDR provides study metadata and analog context; it does not replace flight medicine thresholds.</p>
+      <p><b>4. Flag by hazard.</b> Readings link to known spaceflight hazards: fluid shift and SANS, cardiovascular deconditioning, bone and muscle loss, space motion sickness, hypoglycemia, immune dysregulation, and sleep deficit.</p>
+      <p><b>5. Escalate.</b> Alert-level findings call for the flight surgeon now. Watch-level findings go into the next scheduled report and trigger a recheck.</p>
+      <p><b>6. Trace.</b> Record the measurement source and device in the crew health record. Mission control can perform deeper OSDR study review and hardware traceability outside the offline astronaut workflow.</p>
+      <p style="margin-top:14px;color:var(--watch)"><b>Limits:</b> Ranges here are illustrative placeholders, not validated flight criteria. Before operational use, replace them with thresholds reviewed by NASA flight medicine and cite the exact OSDR or PSI dataset for each one.</p>
+    </div>
+  </section>
+</main>
+</section>
+
+<div class="modal-overlay" id="resultsModal" aria-hidden="true">
+  <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="resultsModalTitle" tabindex="-1">
+    <div class="modal-header">
+      <h2 id="resultsModalTitle">Assessment Results</h2>
+      <button class="btn ghost modal-close" id="resultsModalClose" type="button" aria-label="Close results">&times;</button>
+    </div>
+    <div class="modal-body" id="results"></div>
+  </div>
+</div>
+
+<script>
+  // ---------- NASA BPS source references ----------
+  const SRC = {
+    OSDR: "OSDR",
+    PSI: "PSI",
+    SPLASH: "SPLASH"
+  };
+
+  // ---------- Body region knowledge base ----------
+  const BODY = {
+    head: {
+      name: "Head & Brain",
+      fn: "Houses the brain, eyes, ears, and sinuses. Microgravity shifts fluid toward the head, which can cause facial puffiness, sinus pressure, and vision changes.",
+      hazards: ["Spaceflight-Associated Neuro-ocular Syndrome (SANS)", "Fluid shift", "Sinus congestion"],
+      check: "Watch for headache, blurred vision, or pressure behind the eyes.",
+      data: ["OSDR: fluid-shift and ocular studies", "PSI: fluid-physics models"]
+    },
+    neck: {
+      name: "Neck & Throat",
+      fn: "Carries the airway, major vessels, and the thyroid. Fluid redistribution can cause swelling.",
+      hazards: ["Fluid redistribution", "Dry cabin air irritation"],
+      check: "Check for swelling, pain on swallowing, or thyroid tenderness.",
+      data: ["PSI: cabin humidity and air quality"]
+    },
+    chest: {
+      name: "Chest & Heart",
+      fn: "Heart and lungs. Cardiovascular conditioning declines in microgravity and cardiac volume changes.",
+      hazards: ["Cardiovascular deconditioning", "Orthostatic intolerance on return", "Rhythm changes"],
+      check: "Heart rate and blood pressure trends matter most. Chest pain or palpitations should be escalated.",
+      data: ["OSDR: cardiovascular physiology sets", "SPLASH: onboard monitoring hardware"]
+    },
+    abdomen: {
+      name: "Abdomen & GI",
+      fn: "Digestive organs and metabolic regulation. Space motion sickness and gut microbiome changes occur in flight.",
+      hazards: ["Space motion sickness", "Altered gut microbiome", "Glucose regulation changes"],
+      check: "Nausea, vomiting, or pain beyond mild discomfort should be documented.",
+      data: ["OSDR: microbiome and metabolic studies"]
+    },
+    larm: {
+      name: "Left Arm & Shoulder",
+      fn: "Muscles, tendons, and joints of the upper limb. Muscle mass and bone density drop without loading.",
+      hazards: ["Muscle atrophy", "Bone demineralization", "Joint strain"],
+      check: "Ask about grip strength and unusual weakness during resistance exercise.",
+      data: ["OSDR: musculoskeletal and bone-loss studies"]
+    },
+    rarm: {
+      name: "Right Arm & Shoulder",
+      fn: "Upper-limb muscles and joints. Resistance training helps preserve strength.",
+      hazards: ["Muscle atrophy", "Bone demineralization", "Joint strain"],
+      check: "Ask about grip strength and unusual weakness during resistance exercise.",
+      data: ["OSDR: musculoskeletal and bone-loss studies"]
+    },
+    pelvis: {
+      name: "Pelvis & Hips",
+      fn: "Load-bearing structure for the spine and legs. Hip bone loss is one of the most significant in-flight effects.",
+      hazards: ["Bone loss (hip and spine)", "Kidney stone risk from calcium shifts"],
+      check: "Report flank pain, blood in urine, or persistent hip discomfort.",
+      data: ["OSDR: bone density studies", "PSI: calcium and fluid models"]
+    },
+    lleg: {
+      name: "Left Leg",
+      fn: "Major weight-bearing muscles and bones. Calf veins lose tone without gravity.",
+      hazards: ["Muscle atrophy", "Bone loss", "DVT risk on return"],
+      check: "Check for calf swelling, warmth, or one-sided redness.",
+      data: ["OSDR: musculoskeletal studies", "PSI: fluid-physics models"]
+    },
+    rleg: {
+      name: "Right Leg",
+      fn: "Major weight-bearing muscles and bones. Calf veins lose tone without gravity.",
+      hazards: ["Muscle atrophy", "Bone loss", "DVT risk on return"],
+      check: "Check for calf swelling, warmth, or one-sided redness.",
+      data: ["OSDR: musculoskeletal studies", "PSI: fluid-physics models"]
+    },
+    feet: {
+      name: "Feet & Ankles",
+      fn: "Support and balance structures. Skin and circulation are affected by long periods in restraints.",
+      hazards: ["Fluid pooling", "Skin irritation or fungal infection", "Balance changes on return"],
+      check: "Inspect for skin breakdown, blisters, or fungal patches.",
+      data: ["OSDR: skin and microbe studies"]
+    }
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const toast = () => {};
+
+  // ---------- SSM-aligned sample model ----------
+  // Production adapters should map mission-specific SSM variable IDs into this shape.
+  const HEALTH_DATA = {
+    astronautId: "EX-07",
+    schemaVersion: "ssm-osdr-health-v1",
+    earth_baseline_1g: {
+      collection: "pre-flight ground analog",
+      timestamp: "2026-10-28T08:00:00Z",
+      metrics: {
+        sleep_efficiency_pct: 91, circadian_phase_shift_h: 0.2, reaction_time_ms: 285, pvt_lapses: 1,
+        fatigue_score_0_10: 2, mood_score_0_10: 8, heart_rate_bpm: 64, bp_systolic_mmhg: 116,
+        bp_diastolic_mmhg: 74, cimt_mm: 0.56, fluid_shift_index: 0.08, balance_score_pct: 94,
+        glucose_mg_dl: 89, nutrition_energy_balance_kcal: 35, immune_dysregulation_flag: false,
+        solar_radiation_w_m2: 410
+      },
+      normal_range: {
+        sleep_efficiency_pct: [85, 100], reaction_time_ms: [240, 330], heart_rate_bpm: [52, 78],
+        bp_systolic_mmhg: [100, 130], balance_score_pct: [85, 100], solar_radiation_w_m2: [0, 900]
+      }
+    },
+    spaceflight_telemetry_0g: {
+      collection: "ISS-like live telemetry sample",
+      timestamp: "2026-11-14T06:00:00Z",
+      metrics: {
+        sleep_efficiency_pct: 72, circadian_phase_shift_h: 2.1, reaction_time_ms: 356, pvt_lapses: 6,
+        fatigue_score_0_10: 6, mood_score_0_10: 6, heart_rate_bpm: 78, bp_systolic_mmhg: 128,
+        bp_diastolic_mmhg: 82, cimt_mm: 0.59, fluid_shift_index: 0.31, balance_score_pct: 81,
+        glucose_mg_dl: 104, nutrition_energy_balance_kcal: -210, immune_dysregulation_flag: true,
+        solar_radiation_w_m2: 980
+      },
+      source: { ssm: "SSM-HUMAN-HEALTH", osdr: "OSD-520 / physiological analog", environment: "Meteomatics global_rad:W" }
+    },
+    trend: {
+      sleep_efficiency_pct_1g: [90, 91, 92, 90, 91, 91, 91],
+      sleep_efficiency_pct_0g: [86, 84, 82, 79, 77, 74, 72]
+    }
+  };
+  const REFERENCE_PACK = {
+    name: "SSM / OSDR v1",
+    approvedDate: "2026-10-28",
+    mode: "offline",
+    note: "Preloaded research mappings; operational thresholds require flight-medicine approval."
+  };
+
+  const MONITOR_RULES = [
+    { key: "sleep_efficiency_pct", label: "Sleep efficiency", unit: "%", direction: "lower", watch: 8, alert: 15, category: "Behavioral & sleep", source: "SSM actigraphy" },
+    { key: "reaction_time_ms", label: "Reaction time", unit: " ms", direction: "higher", watch: 15, alert: 25, category: "Cognitive performance", source: "SSM cognitive battery / PVT" },
+    { key: "heart_rate_bpm", label: "Resting heart rate", unit: " bpm", direction: "both", watch: 10, alert: 20, category: "Cardiovascular", source: "SSM cardiovascular" },
+    { key: "balance_score_pct", label: "Sensorimotor balance", unit: "%", direction: "lower", watch: 6, alert: 12, category: "Physical fitness", source: "SSM sensorimotor" },
+    { key: "fluid_shift_index", label: "Fluid-shift index", unit: "", direction: "higher", watch: 0.12, alert: 0.22, category: "Cardiovascular", source: "OSDR fluid-shift analog" },
+    { key: "solar_radiation_w_m2", label: "Environmental radiation proxy", unit: " W/m²", direction: "higher", watch: 250, alert: 500, category: "Environmental stressor", source: "Meteomatics global_rad:W" },
+    { key: "immune_dysregulation_flag", label: "Immune dysregulation flag", unit: "", direction: "boolean", watch: 1, alert: 1, category: "Biochemical stressor", source: "OSDR immune markers" }
+  ];
+
+  function compareTelemetry() {
+    const baseline = HEALTH_DATA.earth_baseline_1g.metrics;
+    const telemetry = HEALTH_DATA.spaceflight_telemetry_0g.metrics;
+    return MONITOR_RULES.map(rule => {
+      const base = baseline[rule.key], current = telemetry[rule.key];
+      let delta = rule.direction === "boolean" ? (current ? "Flagged" : "Clear") : current - base;
+      let magnitude = rule.direction === "boolean" ? (current ? 1 : 0)
+        : rule.direction === "lower" ? Math.max(0, base - current)
+        : rule.direction === "higher" ? Math.max(0, current - base)
+        : Math.abs(delta);
+      const threshold = rule.direction === "boolean" ? (current ? "alert" : "ok")
+        : magnitude >= rule.alert ? "alert" : magnitude >= rule.watch ? "watch" : "ok";
+      return { ...rule, baseline: base, current, delta, level: threshold };
+    });
+  }
+
+  function formatMetric(rule, value) {
+    if (rule.direction === "boolean") return value ? "Flagged" : "Clear";
+    return `${Number(value).toFixed(rule.key.includes("index") ? 2 : 0)}${rule.unit}`;
+  }
+
+  function renderMonitor() {
+    const comparisons = compareTelemetry();
+    $("monitorMetrics").innerHTML = comparisons.map(item => `
+      <article class="metric-card ${item.level}">
+        <h3>${item.category} · ${item.label}</h3>
+        <div class="metric-values">
+          <div><small>Earth / 1G</small><b>${formatMetric(item, item.baseline)}</b></div>
+          <div><small>Spaceflight / 0G</small><b>${formatMetric(item, item.current)}</b></div>
+        </div>
+      </article>`).join("");
+    $("driftRows").innerHTML = comparisons.map(item => {
+      const signed = item.direction === "boolean" ? (item.current ? "new flag" : "none")
+        : `${item.delta > 0 ? "+" : ""}${Number(item.delta).toFixed(item.key.includes("index") ? 2 : 0)}${item.unit}`;
+      const message = item.level === "alert" ? "Early warning: review now" : item.level === "watch" ? "Trend watch" : "Within personal range";
+      return `<div class="drift-row"><b>${item.label}</b><span>${formatMetric(item, item.baseline)} → ${formatMetric(item, item.current)}</span><span>${message}</span><b class="delta" style="color:var(--${item.level === "ok" ? "ok" : item.level})">${signed}</b></div>`;
+    }).join("");
+    const active = comparisons.filter(item => item.level !== "ok");
+    $("alertCount").textContent = `${active.length} active`;
+    $("alertCount").style.color = active.some(item => item.level === "alert") ? "var(--alert)" : "var(--watch)";
+    $("sleepChart").innerHTML = HEALTH_DATA.trend.sleep_efficiency_pct_1g.map((value, i) => `
+      <div class="bar-group" title="Day ${i + 1}: 1G ${value}%, 0G ${HEALTH_DATA.trend.sleep_efficiency_pct_0g[i]}%">
+        <div class="bar baseline" style="height:${value}%"></div>
+        <div class="bar telemetry" style="height:${HEALTH_DATA.trend.sleep_efficiency_pct_0g[i]}%"></div>
+      </div>`).join("");
+  }
+
+  function downloadSampleJson() {
+    const blob = new Blob([JSON.stringify(HEALTH_DATA, null, 2)], { type: "application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "astronaut_telemetry.json";
+    link.click();
+    URL.revokeObjectURL(link.href);
+    toast("Sample JSON downloaded");
+  }
+
+  const API_BASE = window.location.protocol === "file:" ? "http://127.0.0.1:8000" : "";
+
+  async function fetchMeteomaticsRadiation() {
+    const lat = Number($("meteoLat").value), lon = Number($("meteoLon").value), status = $("meteoStatus");
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      status.textContent = "Enter valid coordinates for the backend request.";
+      status.style.color = "var(--watch)";
+      return;
+    }
+    const url = `${API_BASE}/api/environment/radiation?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
+    status.textContent = "Requesting global radiation through the Python backend…";
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => ({}));
+        throw new Error(errorPayload.detail || `Backend returned HTTP ${response.status}`);
+      }
+      const payload = await response.json();
+      const value = Number(payload.value);
+      if (!Number.isFinite(value)) throw new Error("Backend response did not contain a radiation value");
+      HEALTH_DATA.spaceflight_telemetry_0g.metrics.solar_radiation_w_m2 = value;
+      renderMonitor();
+      status.textContent = `${payload.stale ? "Stale cached" : "Live"} global radiation: ${value.toFixed(1)} W/m² at ${lat}, ${lon}.`;
+      status.style.color = payload.stale ? "var(--watch)" : "var(--ok)";
+    } catch (error) {
+      status.textContent = `Backend/Meteomatics request failed: ${error.message}`;
+      status.style.color = "var(--alert)";
+    }
+  }
+
+  // ---------- Tabs ----------
+  document.querySelectorAll(".tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+      $("view-" + btn.dataset.view).classList.add("active");
+    });
+  });
+
+  // ---------- Body map ----------
+  function renderPart(key) {
+    const b = BODY[key];
+    const tags = b.hazards.map(h => `<span class="tag">${h}</span>`).join("");
+    const srcs = b.data.map(d => `<span class="tag src">${d}</span>`).join("");
+    $("partInfo").innerHTML = `
+      <h3>${b.name}</h3>
+      <p><b>Function:</b> ${b.fn}</p>
+      <p><b>Spaceflight hazards:</b><br>${tags}</p>
+      <p><b>Crew check:</b> ${b.check}</p>
+      <p><b>NASA datasets:</b><br>${srcs}</p>`;
+  }
+  document.querySelectorAll(".part").forEach(el => {
+    el.addEventListener("click", () => {
+      const key = el.dataset.part;
+      document.querySelectorAll(".part").forEach(p => p.classList.remove("selected"));
+      document.querySelectorAll(`[data-part="${key}"]`).forEach(p => p.classList.add("selected"));
+      renderPart(key);
+    });
+  });
+  function paintBody(statuses) {
+    document.querySelectorAll(".part").forEach(p => p.classList.remove("status-ok","status-watch","status-alert"));
+    Object.entries(statuses).forEach(([key, s]) => {
+      document.querySelectorAll(`[data-part="${key}"]`).forEach(p => p.classList.add(`status-${s}`));
+    });
+  }
+  $("resetBtn").addEventListener("click", () => {
+    document.querySelectorAll(".part").forEach(p => p.classList.remove("selected"));
+    $("partInfo").innerHTML = `<div class="empty">No region selected</div>`;
+  });
+  $("meteoBtn").addEventListener("click", fetchMeteomaticsRadiation);
+  $("downloadJsonBtn").addEventListener("click", downloadSampleJson);
+  $("referencePackName").textContent = REFERENCE_PACK.name;
+  $("referencePackDate").textContent = REFERENCE_PACK.approvedDate;
+  renderMonitor();
+  fetchMeteomaticsRadiation();
+  setInterval(fetchMeteomaticsRadiation, 10 * 60 * 1000);
+
+  const setResultsStatus = (msg) => {
+    const s = $("results-status");
+    if (s) s.innerHTML = `<div class="empty">${msg}</div>`;
+  };
+  const resultsModal = $("resultsModal");
+  let resultsReturnFocus = null;
+  function openResultsModal() {
+    if (!resultsModal) return;
+    resultsReturnFocus = document.activeElement;
+    resultsModal.classList.add("open");
+    resultsModal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("modal-open");
+    const dialog = resultsModal.querySelector(".modal-dialog");
+    if (dialog) dialog.focus();
+  }
+  function closeResultsModal() {
+    if (!resultsModal) return;
+    resultsModal.classList.remove("open");
+    resultsModal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("modal-open");
+    if (resultsReturnFocus && typeof resultsReturnFocus.focus === "function") resultsReturnFocus.focus();
+  }
+  $("resultsModalClose").addEventListener("click", closeResultsModal);
+  resultsModal.addEventListener("click", (e) => { if (e.target === resultsModal) closeResultsModal(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && resultsModal && resultsModal.classList.contains("open")) closeResultsModal();
+  });
+
+  // ---------- Assessment ----------
+  function evaluate() {
+    const v = {
+      hr: parseFloat($("hr").value), sys: parseFloat($("sys").value), dia: parseFloat($("dia").value),
+      spo2: parseFloat($("spo2").value), glu: parseFloat($("glu").value), temp: parseFloat($("temp").value),
+      sleep: parseFloat($("sleep").value), sleepEfficiency: parseFloat($("sleepEfficiency").value),
+      reaction: parseFloat($("reaction").value), balance: parseFloat($("balance").value),
+      fatigue: parseFloat($("fatigue").value), mood: parseFloat($("mood").value),
+      pain: parseFloat($("pain").value),
+      symptoms: [...document.querySelectorAll('input[name="symptoms"]:checked')].map(o => o.value)
+    };
+
+    const readings = [];
+    let score = 100;
+    const bodyStatus = {};
+    const rank = { ok: 0, watch: 1, alert: 2 };
+    const flag = (part, level) => {
+      if (!part) return;
+      if (!bodyStatus[part] || rank[level] > rank[bodyStatus[part]]) bodyStatus[part] = level;
+    };
+    const add = (name, value, level, note, part, src) => {
+      readings.push({ name, value, level, note, src });
+      if (level === "watch") score -= 6;
+      if (level === "alert") score -= 16;
+      flag(part, level);
+    };
+
+    if (!isNaN(v.hr)) {
+      if (v.hr > 110 || v.hr < 45) add("Heart rate", `${v.hr} bpm`, "alert", "Outside safe range. Notify the flight surgeon and assess for arrhythmia.", "chest", "OSDR cardiovascular sets");
+      else if (v.hr > 100 || v.hr < 50) add("Heart rate", `${v.hr} bpm`, "watch", "Borderline. Recheck after rest and watch for palpitations.", "chest", "OSDR cardiovascular sets");
+      else add("Heart rate", `${v.hr} bpm`, "ok", "Within expected in-flight range.", "chest", "OSDR cardiovascular sets");
+    }
+    if (!isNaN(v.sys) && !isNaN(v.dia)) {
+      if (v.sys >= 160 || v.dia >= 100 || v.sys < 90) add("Blood pressure", `${v.sys}/${v.dia} mmHg`, "alert", "Significantly off target. Review with the flight surgeon.", "chest", "OSDR cardiovascular sets");
+      else if (v.sys >= 130 || v.dia >= 85) add("Blood pressure", `${v.sys}/${v.dia} mmHg`, "watch", "Elevated. Recheck in 1 hour and reduce sodium.", "chest", "OSDR cardiovascular sets");
+      else add("Blood pressure", `${v.sys}/${v.dia} mmHg`, "ok", "Within target range.", "chest", "OSDR cardiovascular sets");
+    }
+    if (!isNaN(v.spo2)) {
+      if (v.spo2 < 90) add("Blood oxygen (SpO₂)", `${v.spo2}%`, "alert", "Hypoxemia. Confirm probe placement, check cabin atmosphere, and escalate.", "chest", "PSI cabin atmosphere models");
+      else if (v.spo2 < 95) add("Blood oxygen (SpO₂)", `${v.spo2}%`, "watch", "Slightly low. Recheck and check cabin atmosphere readings.", "chest", "PSI cabin atmosphere models");
+      else add("Blood oxygen (SpO₂)", `${v.spo2}%`, "ok", "Normal oxygen saturation.", "chest", "PSI cabin atmosphere models");
+    }
+    if (!isNaN(v.glu)) {
+      if (v.glu < 60 || v.glu > 250) add("Blood glucose", `${v.glu} mg/dL`, "alert", "Hypoglycemia or severe hyperglycemia risk. Treat per protocol and notify the medical officer.", "abdomen", "OSDR metabolic studies");
+      else if (v.glu > 140 || v.glu < 70) add("Blood glucose", `${v.glu} mg/dL`, "watch", "Outside fasting target. Consider meal timing and recheck.", "abdomen", "OSDR metabolic studies");
+      else add("Blood glucose", `${v.glu} mg/dL`, "ok", "Within target range.", "abdomen", "OSDR metabolic studies");
+    }
+    if (!isNaN(v.temp)) {
+      if (v.temp >= 38.5 || v.temp < 35.5) add("Core temperature", `${v.temp} °C`, "alert", "Fever or hypothermia. Begin treatment protocol and inform ground.", "head", "OSDR physiology sets");
+      else if (v.temp >= 37.8 || v.temp < 36.1) add("Core temperature", `${v.temp} °C`, "watch", "Borderline. Hydrate and recheck in 30 minutes.", "head", "OSDR physiology sets");
+      else add("Core temperature", `${v.temp} °C`, "ok", "Normal.", "head", "OSDR physiology sets");
+    }
+    if (!isNaN(v.sleep)) {
+      if (v.sleep < 5) add("Sleep (24h)", `${v.sleep} h`, "alert", "Severe deficit. Impairs cognition and performance. Reschedule tasks.", "head", "OSDR sleep and performance studies");
+      else if (v.sleep < 7) add("Sleep (24h)", `${v.sleep} h`, "watch", "Below target. Schedule rest and limit caffeine.", "head", "OSDR sleep and performance studies");
+      else add("Sleep (24h)", `${v.sleep} h`, "ok", "Adequate rest.", "head", "OSDR sleep and performance studies");
+    }
+    if (!isNaN(v.sleepEfficiency)) {
+      if (v.sleepEfficiency < 75) add("Sleep efficiency", `${v.sleepEfficiency}%`, "alert", "Low efficiency suggests fragmented or poorly restorative sleep. Protect rest and repeat the measure.", "head", "SSM actigraphy / sleep log");
+      else if (v.sleepEfficiency < 85) add("Sleep efficiency", `${v.sleepEfficiency}%`, "watch", "Below the personal target. Review interruptions, light, noise, and schedule.", "head", "SSM actigraphy / sleep log");
+      else add("Sleep efficiency", `${v.sleepEfficiency}%`, "ok", "Within the preferred personal range.", "head", "SSM actigraphy / sleep log");
+    }
+    if (!isNaN(v.reaction)) {
+      if (v.reaction > 350) add("Reaction time", `${v.reaction} ms`, "alert", "Slowed response can indicate fatigue or cognitive drift. Repeat when rested and defer safety-critical work.", "head", "Crew tablet reaction test / SSM PVT");
+      else if (v.reaction > 320) add("Reaction time", `${v.reaction} ms`, "watch", "Slower than the preferred check-in range. Repeat the same five-trial test.", "head", "Crew tablet reaction test / SSM PVT");
+      else add("Reaction time", `${v.reaction} ms`, "ok", "Within the preferred check-in range.", "head", "Crew tablet reaction test / SSM PVT");
+    }
+    if (!isNaN(v.balance)) {
+      if (v.balance < 10) add("Single-leg balance", `${v.balance} s`, "alert", "Marked sensorimotor difficulty. Stop the test if unsafe and notify the medical officer.", "feet", "Crew balance test / SSM sensorimotor");
+      else if (v.balance < 20) add("Single-leg balance", `${v.balance} s`, "watch", "Below the preferred check-in range. Repeat with the same setup and support rules.", "feet", "Crew balance test / SSM sensorimotor");
+      else add("Single-leg balance", `${v.balance} s`, "ok", "Within the preferred check-in range.", "feet", "Crew balance test / SSM sensorimotor");
+    }
+    if (!isNaN(v.fatigue)) {
+      if (v.fatigue >= 8) add("Subjective fatigue", `${v.fatigue}/10`, "alert", "High fatigue may make safety-critical work unsafe. Rest and notify the medical officer.", "head", "Self-report / SSM behavioral health");
+      else if (v.fatigue >= 6) add("Subjective fatigue", `${v.fatigue}/10`, "watch", "Elevated fatigue. Reduce workload and repeat after a protected rest period.", "head", "Self-report / SSM behavioral health");
+      else add("Subjective fatigue", `${v.fatigue}/10`, "ok", "No significant fatigue reported.", "head", "Self-report / SSM behavioral health");
+    }
+    if (!isNaN(v.mood)) {
+      if (v.mood <= 2) add("Mental readiness", `${v.mood}/10`, "alert", "Very low readiness or mood warrants a private check-in with the medical officer.", "head", "Self-report / SSM behavioral health");
+      else if (v.mood <= 4) add("Mental readiness", `${v.mood}/10`, "watch", "Below the preferred range. Log context and repeat during the next check-in.", "head", "Self-report / SSM behavioral health");
+      else add("Mental readiness", `${v.mood}/10`, "ok", "Within the preferred check-in range.", "head", "Self-report / SSM behavioral health");
+    }
+    if (!isNaN(v.pain)) {
+      if (v.pain >= 7) add("Pain level", `${v.pain}/10`, "alert", "Severe pain. Localize on the body map and escalate.", null, "Self-report");
+      else if (v.pain >= 4) add("Pain level", `${v.pain}/10`, "watch", "Moderate pain. Consider analgesic per protocol and log location.", null, "Self-report");
+      else add("Pain level", `${v.pain}/10`, "ok", "Mild or none.", null, "Self-report");
+    }
+
+    const symptomMap = {
+      dizziness: ["Dizziness / lightheadedness", "watch", "chest", "Possible orthostatic intolerance. Rise slowly and hydrate.", "OSDR cardiovascular sets"],
+      nausea: ["Nausea / vomiting", "watch", "abdomen", "Often space motion sickness. Use antiemetic per protocol.", "OSDR physiology sets"],
+      headache: ["Headache", "watch", "head", "Check fluid status and SANS-related pressure. Log severity.", "OSDR fluid-shift studies"],
+      vision: ["Vision changes", "alert", "head", "Possible SANS or raised intracranial pressure. Escalate for ophthalmic exam.", "OSDR ocular studies"],
+      congestion: ["Congestion / sinus pressure", "watch", "head", "Fluid shift effect. Use decongestant per protocol.", "PSI cabin humidity models"],
+      backpain: ["Back or joint pain", "watch", "pelvis", "Spinal lengthening in microgravity is common. Monitor.", "OSDR musculoskeletal studies"],
+      rash: ["Skin rash", "watch", "feet", "Photograph and track. Could be contact or fungal.", "OSDR skin and microbe studies"],
+      shortness: ["Shortness of breath", "alert", "chest", "Assess for cardiopulmonary emergency. Notify the medical officer now.", "OSDR cardiovascular sets"]
+    };
+    v.symptoms.forEach(s => {
+      const [name, lvl, part, note, src] = symptomMap[s];
+      add(name, "Reported", lvl, note, part, src);
+    });
+
+    const hasInput = readings.length > 0;
+    const alerts = readings.filter(r => r.level === "alert").length;
+    const watches = readings.filter(r => r.level === "watch").length;
+    return {
+      readings, bodyStatus, alerts, watches,
+      score: hasInput ? Math.max(0, Math.min(100, score)) : null
+    };
+  }
+
+  function buildActions(r) {
+    const steps = [];
+    const has = (s) => r.readings.some(x => x.name.includes(s));
+    if (r.alerts > 0) {
+      steps.push("Notify the onboard medical officer and the ground flight surgeon now.");
+      steps.push("Stop non-essential tasks and rest in a stable posture.");
+    }
+    if (has("Heart") || has("Blood pressure") || has("oxygen")) steps.push("Repeat cardiovascular readings in 15 to 30 minutes to confirm the trend.");
+    if (has("Sleep")) steps.push("Protect a scheduled sleep period and reduce workload for the next shift.");
+    if (has("Dizziness")) steps.push("Rise slowly from a seated or supine position and maintain fluid intake.");
+    if (has("Nausea")) steps.push("Use motion-sickness countermeasures and keep a fixed visual reference.");
+    if (has("Vision")) steps.push("Schedule an ophthalmic check and record visual acuity.");
+    steps.push("Continue resistance exercise (as cleared) to slow bone and muscle loss.");
+    steps.push("Log all values to the health record and compare against the OSDR trend.");
+    return steps;
+  }
+
+  function renderResults() {
+    const r = evaluate();
+    const box = $("results");
+    if (r.score === null) {
+      box.innerHTML = `<div class="empty">No values entered. Add at least one indicator or symptom.</div>`;
+      setResultsStatus("No values entered. Add at least one indicator or symptom, then run an assessment.");
+      paintBody({});
+      openResultsModal();
+      return;
+    }
+
+    const verdict = r.alerts > 0 ? "alert" : r.watches > 0 ? "watch" : "ok";
+    const verdictText = { ok: "All Indicators Nominal", watch: "Monitoring Recommended", alert: "Immediate Attention Required" }[verdict];
+    const summary = {
+      ok: "Measured values are within expected ranges. Continue routine countermeasures and scheduled checks.",
+      watch: `${r.watches} indicator(s) outside the preferred range. Recheck and track the trend.`,
+      alert: `${r.alerts} critical finding(s) and ${r.watches} watch item(s). Escalate to the flight surgeon.`
+    }[verdict];
+    const color = { ok: "var(--ok)", watch: "var(--watch)", alert: "var(--alert)" }[verdict];
+    const circ = 2 * Math.PI * 52;
+    const offset = circ - (r.score / 100) * circ;
+
+    const readingsHtml = r.readings.map((x, i) => `
+      <div class="reading" style="animation-delay:${i * 60}ms">
+        <div class="name"><span class="dot ${x.level}"></span>${x.name}</div>
+        <div class="val">${x.value}</div>
+        <div class="note">${x.note}</div>
+        <div class="src-line">Source: ${x.src}</div>
+      </div>`).join("");
+
+    const steps = buildActions(r).map(s => `<li>${s}</li>`).join("");
+    const escMsg = verdict === "alert"
+      ? `<b>Escalation:</b> Contact the flight surgeon immediately via the medical channel. Do not delay for trend confirmation.`
+      : verdict === "watch"
+      ? `<b>Advisory:</b> Include these findings in the next scheduled medical report. Escalate if values worsen.`
+      : "";
+
+    box.innerHTML = `
+      <div class="score-ring">
+        <div class="ring">
+          <svg width="124" height="124" viewBox="0 0 124 124">
+            <circle cx="62" cy="62" r="52" fill="none" stroke="#17243d" stroke-width="10"/>
+            <circle class="bar" id="ringBar" cx="62" cy="62" r="52" fill="none" stroke-width="10"
+              stroke="${color}" stroke-linecap="round"
+              stroke-dasharray="${circ}" stroke-dashoffset="${circ}"/>
+          </svg>
+          <div class="num"><div><b>${r.score}</b><small>Health index</small></div></div>
+        </div>
+        <div>
+          <div class="verdict ${verdict}">${verdictText}</div>
+          <div class="summary">${summary}</div>
+        </div>
+      </div>
+      <div class="escalate ${verdict}${verdict === "ok" ? "" : " show"}">${escMsg}</div>
+      <div class="readings">${readingsHtml}</div>
+      <div class="actions"><h3>Recommended actions</h3><ol>${steps}</ol></div>`;
+
+    setResultsStatus(`${verdictText} (health index ${r.score}). Results shown in pop-up.`);
+    openResultsModal();
+    requestAnimationFrame(() => {
+      const bar = document.getElementById("ringBar");
+      if (bar) bar.setAttribute("stroke-dashoffset", offset);
+    });
+    paintBody(r.bodyStatus);
+    toast(`Assessment complete: ${verdictText}`);
+  }
+
+  $("assessBtn").addEventListener("click", renderResults);
+  $("sampleBtn").addEventListener("click", () => {
+    $("hr").value = 84; $("sys").value = 136; $("dia").value = 88; $("spo2").value = 93;
+    $("glu").value = 102; $("temp").value = 37.2; $("sleep").value = 5.5; $("sleepEfficiency").value = 72;
+    $("reaction").value = 356; $("balance").value = 14; $("fatigue").value = 6; $("mood").value = 6; $("pain").value = 3;
+    document.querySelectorAll('input[name="symptoms"]').forEach(o => { o.checked = ["dizziness", "nausea"].includes(o.value); });
+    toast("Sample crew data loaded");
+    renderResults();
+  });
+  $("clearBtn").addEventListener("click", () => {
+    document.querySelectorAll("#view-assess input").forEach(i => { if (i.type !== "file") i.value = ""; });
+    document.querySelectorAll('input[name="symptoms"]').forEach(o => { o.checked = false; });
+    closeResultsModal();
+    $("results").innerHTML = "";
+    setResultsStatus("Enter indicators and run an assessment. Results will open in a pop-up.");
+    paintBody({});
+    toast("Form cleared");
+  });
+
+  // ---------- Image input (local preview only) ----------
+  const drop = $("drop"), file = $("file"), preview = $("preview");
+  drop.addEventListener("click", () => file.click());
+  ["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", e => { if (e.dataTransfer.files[0]) showFile(e.dataTransfer.files[0]); });
+  file.addEventListener("change", () => { if (file.files[0]) showFile(file.files[0]); });
+  function showFile(f) {
+    preview.src = URL.createObjectURL(f); preview.style.display = "block";
+    toast("Image captured for review");
+  }
+
+  // ---------- Mission clock ----------
+  const start = Date.now();
+  setInterval(() => {
+    const s = Math.floor((Date.now() - start) / 1000) + 14400;
+    const h = String(Math.floor(s / 3600)).padStart(3, "0");
+    const m = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
+    const sec = String(s % 60).padStart(2, "0");
+    $("met").textContent = `${h}:${m}:${sec}`;
+  }, 1000);
+</script>
+<footer>©CODE | NASA Space Apps Challenge 2026</footer>
+</body>
+</html>
