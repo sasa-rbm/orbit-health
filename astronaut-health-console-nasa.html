@@ -647,11 +647,11 @@
       collection: "ISS-like live telemetry sample",
       timestamp: "2026-11-14T06:00:00Z",
       metrics: {
-        sleep_efficiency_pct: 72, circadian_phase_shift_h: 2.1, reaction_time_ms: 356, pvt_lapses: 6,
-        fatigue_score_0_10: 6, mood_score_0_10: 6, heart_rate_bpm: 78, bp_systolic_mmhg: 128,
-        bp_diastolic_mmhg: 82, cimt_mm: 0.59, fluid_shift_index: 0.31, balance_score_pct: 81,
-        glucose_mg_dl: 104, nutrition_energy_balance_kcal: -210, immune_dysregulation_flag: true,
-        solar_radiation_w_m2: 980
+        sleep_efficiency_pct: null, circadian_phase_shift_h: 2.1, reaction_time_ms: null, pvt_lapses: 6,
+        fatigue_score_0_10: 6, mood_score_0_10: 6, heart_rate_bpm: null, bp_systolic_mmhg: 128,
+        bp_diastolic_mmhg: 82, cimt_mm: 0.59, fluid_shift_index: null, balance_score_pct: null,
+        glucose_mg_dl: 104, nutrition_energy_balance_kcal: -210, immune_dysregulation_flag: null,
+        solar_radiation_w_m2: null
       },
       source: { ssm: "SSM-HUMAN-HEALTH", osdr: "OSD-520 / physiological analog", environment: "Meteomatics global_rad:W" }
     },
@@ -690,7 +690,7 @@
       const threshold = rule.direction === "boolean" ? (current ? "alert" : "ok")
         : magnitude >= rule.alert ? "alert" : magnitude >= rule.watch ? "watch" : "ok";
       return { ...rule, baseline: base, current, delta, level: threshold };
-    });
+    }).filter(item => item.current !== null && item.current !== undefined);
   }
 
   function formatMetric(rule, value) {
@@ -979,6 +979,20 @@
       openResultsModal();
       return;
     }
+
+    const assessmentTelemetry = {
+      sleep_efficiency_pct: Number($("sleepEfficiency").value),
+      reaction_time_ms: Number($("reaction").value),
+      heart_rate_bpm: Number($("hr").value)
+    };
+    Object.entries(assessmentTelemetry).forEach(([key, value]) => {
+      if (Number.isFinite(value)) HEALTH_DATA.spaceflight_telemetry_0g.metrics[key] = value;
+    });
+    if (Number.isFinite(assessmentTelemetry.sleep_efficiency_pct)) {
+      const trend = HEALTH_DATA.trend.sleep_efficiency_pct_0g;
+      trend[trend.length - 1] = assessmentTelemetry.sleep_efficiency_pct;
+    }
+    renderMonitor();
 
     const verdict = r.alerts > 0 ? "alert" : r.watches > 0 ? "watch" : "ok";
     const verdictText = { ok: "All Indicators Nominal", watch: "Monitoring Recommended", alert: "Immediate Attention Required" }[verdict];
